@@ -13,6 +13,18 @@ log('PAGE_ID: ' + process.env.PAGE_ID);
 const NOTION_API_KEY = process.env.NOTION_API_KEY;
 const PAGE_ID = process.env.PAGE_ID;
 
+// Leer el archivo contactos.txt
+const contactosData = fs.readFileSync('contactos.txt', 'utf-8');
+
+// Procesar los datos y cargarlos en el array aContactos
+const aContactos = contactosData.split('\n').map(line => {
+  const [nombre, numero] = line.split(':');
+  return { nombre: nombre.trim(), numero: numero.trim() };
+});
+
+// Verificar que los contactos se han cargado correctamente
+console.log(aContactos);
+
 // Configuración de Axios para conectar con Notion
 const notionClient = axios.create({
     baseURL: 'https://api.notion.com/v1',
@@ -50,29 +62,40 @@ function log(message) {
 }
 
 // Función para guardar mensajes en un archivo diferenciado por día
-function saveMessage(logMessage) {
+function saveMessage(logMessage,oObjetoMensaje) {
   const messageFileName = getMessageFileName();
-  fs.appendFile(messageFileName, logMessage, (err) => {
+  const mensajeString = JSON.stringify(oObjetoMensaje, null, 2); // Convertir a string con formato
+  fs.appendFile(messageFileName, mensajeString, (err) => {
     if (err) {
       log('Error al guardar el mensaje: ' + err);
     }
   });
 }
 
-async function addEntryToNotionDatabase(pageId, contact, type, date, content, phoneNumber, groupNumber) {
+async function addEntryToNotionDatabase(pageId, cRemitente, cDestinatario,type, date, content, phoneNumber, cTelefonoDestinatario, groupNumber) {
   try {
     const response = await notionClient.post(`/pages`, {
       parent: { database_id: pageId },
       properties: {
-        'Contacto': {
+        'Remitente': {
           title: [
             {
               text: {
-                content: contact
+                content: cRemitente
               }
             }
           ]
         },
+        'Destinatario': {
+          rich_text: [
+            {
+              text: {
+                content: cDestinatario
+              }
+            }
+          ]
+        },
+
         'Tipo': {
           select: {
             name: type
@@ -92,7 +115,7 @@ async function addEntryToNotionDatabase(pageId, contact, type, date, content, ph
             }
           ]
         },
-        'Teléfono': {
+        'Teléfono remitente': {
           rich_text: [
             {
               text: {
@@ -101,6 +124,16 @@ async function addEntryToNotionDatabase(pageId, contact, type, date, content, ph
             }
           ]
         },
+        'Teléfono destinatario': {
+          rich_text: [
+            {
+              text: {
+                content: phoneNumber
+              }
+            }
+          ]
+        },
+
         'Grupo': {
           rich_text: [
             {
@@ -151,6 +184,7 @@ client.on('auth_failure', (msg) => {
 
 // Función para procesar y guardar mensajes, y enviar a Notion
 async function processMessage(message, isOutgoing = false) {
+  let cTipoMensaje='';
   try {      
     // Ignorar actualizaciones de estado
     if (message.isStatus) {
@@ -161,7 +195,6 @@ async function processMessage(message, isOutgoing = false) {
     if (!message.body || message.body.trim() === '') {
       return;
     }
-
     let logMessage = `Fecha: ${new Date().toLocaleString()}\n`;
     let contact = '';
     let phoneNumber = '';
@@ -178,6 +211,7 @@ async function processMessage(message, isOutgoing = false) {
       phoneNumber = chat.id.user || 'Número desconocido';
       contact = 'Usuario (Yo)';
       logMessage += `Para: ${phoneNumber}\n`;
+      cTipoMensaje='Salida';
     } else {
       // Obtener información del remitente
       const contactInfo = await message.getContact();
@@ -186,6 +220,7 @@ async function processMessage(message, isOutgoing = false) {
 
       logMessage += `Tipo: Mensaje Entrante\n`;
       logMessage += `De: ${contact} (${phoneNumber})\n`;
+      cTipoMensaje='Entrada';
     }
 
     // Verificar si el mensaje es de un grupo
@@ -197,11 +232,28 @@ async function processMessage(message, isOutgoing = false) {
 
     logMessage += `Mensaje: ${message.body}\n\n`;
 
+    if(cTipoMensaje==='Salida'){
+       contact="Jesús Camero (yo)"
+    }
+    else{
+      contact=buscarNombrePorNumero(message.from)
+    }
+
+    let cRemitente=''
+    cRemitente=buscarNombrePorNumero(message.from)
+
+    let cDestinatario=''
+    cDestinatario=buscarNombrePorNumero(message.to)
+
+    let cTelefonoDestinatario=message.to
+
     // Guardar el mensaje en el archivo específico del día
-    saveMessage(logMessage);
+    saveMessage(logMessage,message);
 
     // Enviar el mensaje a la base de datos de Notion
-    await addEntryToNotionDatabase(PAGE_ID, contact, type, date, content, phoneNumber, groupNumber);
+    
+    
+    await addEntryToNotionDatabase(PAGE_ID, cRemitente, cDestinatario, type, date, content, phoneNumber, cTelefonoDestinatario,groupNumber);
 
   } catch (error) {
     log('Error al procesar el mensaje: ' + error);
@@ -229,6 +281,15 @@ client.on('disconnected', (reason) => {
     client.initialize();
   }, 120000);
 });
+
+function buscarNombrePorNumero(numero) {
+  for (const contacto of aContactos) {
+    if (numero.includes(contacto.numero)) {
+      return contacto.nombre;
+    }
+  }
+  return "Contacto no Registrado";
+}
 
 // Capturar errores no manejados
 process.on('unhandledRejection', (reason, promise) => {
