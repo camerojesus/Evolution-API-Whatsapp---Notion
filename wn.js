@@ -59,47 +59,64 @@ function saveMessage(logMessage) {
   });
 }
 
-// Función para agregar una entrada a la base de datos de Notion
-async function addEntryToNotionDatabase(pageId, contact, type, date, content) {
-    try {
-      const response = await notionClient.post(`/pages`, {
-        parent: { database_id: pageId },
-        properties: {
-          'Contacto': {
-            title: [
-              {
-                text: {
-                  content: contact
-                }
+async function addEntryToNotionDatabase(pageId, contact, type, date, content, phoneNumber, groupNumber) {
+  try {
+    const response = await notionClient.post(`/pages`, {
+      parent: { database_id: pageId },
+      properties: {
+        'Contacto': {
+          title: [
+            {
+              text: {
+                content: contact
               }
-            ]
-          },
-          'Tipo': {
-            select: {
-              name: type
             }
-          },
-          'Fecha de Contacto': {
-            date: {
-              start: date
-            }
-          },
-          'Contenido': {
-            rich_text: [
-              {
-                text: {
-                  content: content
-                }
-              }
-            ]
+          ]
+        },
+        'Tipo': {
+          select: {
+            name: type
           }
+        },
+        'Fecha de Contacto': {
+          date: {
+            start: date
+          }
+        },
+        'Contenido': {
+          rich_text: [
+            {
+              text: {
+                content: content
+              }
+            }
+          ]
+        },
+        'Teléfono': {
+          rich_text: [
+            {
+              text: {
+                content: phoneNumber
+              }
+            }
+          ]
+        },
+        'Grupo': {
+          rich_text: [
+            {
+              text: {
+                content: groupNumber
+              }
+            }
+          ]
         }
-      });
-      log('Entrada agregada a la base de datos de Notion: ' + JSON.stringify(response.data));
-    } catch (error) {
-      log('Error agregando entrada a la base de datos de Notion: ' + (error.response ? JSON.stringify(error.response.data) : error.message));
-    }
+      }
+    });
+    log('Entrada agregada a la base de datos de Notion: ' + JSON.stringify(response.data));
+  } catch (error) {
+    log('Error agregando entrada a la base de datos de Notion: ' + (error.response ? JSON.stringify(error.response.data) : error.message));
   }
+}
 
 // Crear una instancia del cliente con autenticación local para WhatsApp
 const client = new Client({
@@ -134,59 +151,62 @@ client.on('auth_failure', (msg) => {
 
 // Función para procesar y guardar mensajes, y enviar a Notion
 async function processMessage(message, isOutgoing = false) {
-    try {      
-      // Ignorar actualizaciones de estado
-      if (message.isStatus) {
-        return;
-      }
-  
-      // Ignorar mensajes sin texto
-      if (!message.body || message.body.trim() === '') {
-        return;
-      }
-  
-      let logMessage = `Fecha: ${new Date().toLocaleString()}\n`;
-      let contact = '';
-      let type = isOutgoing ? 'Salida' : 'Entrada';
-      let date = new Date().toISOString();
-      let content = message.body;
-  
-      if (isOutgoing) {
-        logMessage += `Tipo: Mensaje Saliente\n`;
-        const chat = await message.getChat();
-        const recipientNumber = chat.id.user || 'Número desconocido';
-        contact = `Número: ${recipientNumber}`;
-        logMessage += `Para: ${recipientNumber}\n`;
-      } else {
-        // Obtener información del remitente
-        const contactInfo = await message.getContact();
-        const senderNumber = contactInfo.number || 'Número desconocido';
-        const senderName = contactInfo.pushname || contactInfo.name || 'Nombre desconocido';
-        contact = `${senderName} (${senderNumber})`;
-  
-        // Verificar si el mensaje es de un grupo
-        const chat = await message.getChat();
-        if (chat.isGroup) {
-          const groupName = chat.name || 'Nombre de grupo desconocido';
-          logMessage += `Grupo: ${groupName} (${chat.id._serialized})\n`;
-        }
-  
-        logMessage += `Tipo: Mensaje Entrante\n`;
-        logMessage += `De: ${senderName} (${senderNumber})\n`;
-      }
-  
-      logMessage += `Mensaje: ${message.body}\n\n`;
-  
-      // Guardar el mensaje en el archivo específico del día
-      saveMessage(logMessage);
-  
-      // Enviar el mensaje a la base de datos de Notion
-      await addEntryToNotionDatabase(PAGE_ID, contact, type, date, content);
-  
-    } catch (error) {
-      log('Error al procesar el mensaje: ' + error);
+  try {      
+    // Ignorar actualizaciones de estado
+    if (message.isStatus) {
+      return;
     }
+
+    // Ignorar mensajes sin texto
+    if (!message.body || message.body.trim() === '') {
+      return;
+    }
+
+    let logMessage = `Fecha: ${new Date().toLocaleString()}\n`;
+    let contact = '';
+    let phoneNumber = '';
+    let groupNumber = '';
+    let type = isOutgoing ? 'Salida' : 'Entrada';
+    let date = new Date().toISOString();
+    let content = message.body;
+
+    // Obtener información del chat
+    const chat = await message.getChat();
+
+    if (isOutgoing) {
+      logMessage += `Tipo: Mensaje Saliente\n`;
+      phoneNumber = chat.id.user || 'Número desconocido';
+      contact = 'Usuario (Yo)';
+      logMessage += `Para: ${phoneNumber}\n`;
+    } else {
+      // Obtener información del remitente
+      const contactInfo = await message.getContact();
+      phoneNumber = contactInfo.number || 'Número desconocido';
+      contact = contactInfo.pushname || contactInfo.name || 'Nombre desconocido';
+
+      logMessage += `Tipo: Mensaje Entrante\n`;
+      logMessage += `De: ${contact} (${phoneNumber})\n`;
+    }
+
+    // Verificar si el mensaje es de un grupo
+    if (chat.isGroup) {
+      const groupName = chat.name || 'Nombre de grupo desconocido';
+      groupNumber = chat.id._serialized || '';
+      logMessage += `Grupo: ${groupName} (${groupNumber})\n`;
+    }
+
+    logMessage += `Mensaje: ${message.body}\n\n`;
+
+    // Guardar el mensaje en el archivo específico del día
+    saveMessage(logMessage);
+
+    // Enviar el mensaje a la base de datos de Notion
+    await addEntryToNotionDatabase(PAGE_ID, contact, type, date, content, phoneNumber, groupNumber);
+
+  } catch (error) {
+    log('Error al procesar el mensaje: ' + error);
   }
+}
 
 // Escuchar nuevos mensajes entrantes en WhatsApp
 client.on('message', async (message) => {
