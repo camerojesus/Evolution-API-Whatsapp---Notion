@@ -72,7 +72,7 @@ function saveMessage(logMessage,oObjetoMensaje) {
   });
 }
 
-async function addEntryToNotionDatabase(pageId, cRemitente, cDestinatario,type, date, content, phoneNumber, cTelefonoDestinatario, groupNumber) {
+async function addEntryToNotionDatabase(pageId, cRemitente, cDestinatario,type, date, content, cTelefonoRemitente, cTelefonoDestinatario, cNombreGrupo) {
   try {
     const response = await notionClient.post(`/pages`, {
       parent: { database_id: pageId },
@@ -119,7 +119,7 @@ async function addEntryToNotionDatabase(pageId, cRemitente, cDestinatario,type, 
           rich_text: [
             {
               text: {
-                content: phoneNumber
+                content: cTelefonoRemitente
               }
             }
           ]
@@ -128,7 +128,7 @@ async function addEntryToNotionDatabase(pageId, cRemitente, cDestinatario,type, 
           rich_text: [
             {
               text: {
-                content: phoneNumber
+                content: cTelefonoDestinatario
               }
             }
           ]
@@ -138,7 +138,7 @@ async function addEntryToNotionDatabase(pageId, cRemitente, cDestinatario,type, 
           rich_text: [
             {
               text: {
-                content: groupNumber
+                content: cNombreGrupo
               }
             }
           ]
@@ -245,15 +245,23 @@ async function processMessage(message, isOutgoing = false) {
     let cDestinatario=''
     cDestinatario=buscarNombrePorNumero(message.to)
 
+    let cTelefonoRemitente=message.from
     let cTelefonoDestinatario=message.to
 
+    let cIDGrupo=getGroupIdIfGroupChat(message);
+    let cNombreGrupo=buscarNombrePorNumero(cIDGrupo)
+
+    if(cNombreGrupo==='Contacto no Registrado'){
+      cNombreGrupo=''
+    }
+    
     // Guardar el mensaje en el archivo específico del día
     saveMessage(logMessage,message);
 
     // Enviar el mensaje a la base de datos de Notion
     
     
-    await addEntryToNotionDatabase(PAGE_ID, cRemitente, cDestinatario, type, date, content, phoneNumber, cTelefonoDestinatario,groupNumber);
+    await addEntryToNotionDatabase(PAGE_ID, cRemitente, cDestinatario, type, date, content, cTelefonoRemitente, cTelefonoDestinatario, cNombreGrupo);
 
   } catch (error) {
     log('Error al procesar el mensaje: ' + error);
@@ -290,6 +298,15 @@ function buscarNombrePorNumero(numero) {
   }
   return "Contacto no Registrado";
 }
+
+function getGroupIdIfGroupChat(message) {
+  // Verifica si es un chat grupal verificando el campo '_data.id.remote'
+  if (message._data && message._data.id && message._data.id.remote.endsWith('@g.us')) {
+      return message._data.id.remote;  // Retorna el ID del grupo
+  }
+  return '';  // Si no es un grupo, retorna una cadena vacía
+}
+
 
 // Capturar errores no manejados
 process.on('unhandledRejection', (reason, promise) => {
