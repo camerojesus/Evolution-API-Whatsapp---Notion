@@ -2,6 +2,7 @@
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 const fs = require('fs');
+const path = require('path');
 const axios = require('axios');
 require('dotenv').config();
 
@@ -17,13 +18,69 @@ const PAGE_ID = process.env.PAGE_ID;
 const contactosData = fs.readFileSync('contactos.txt', 'utf-8');
 
 // Procesar los datos y cargarlos en el array aContactos
-const aContactos = contactosData.split('\n').map(line => {
+let aContactos = contactosData.split('\n').map(line => {
   const [nombre, numero] = line.split(':');
   return { nombre: nombre.trim(), numero: numero.trim() };
 });
 
 // Verificar que los contactos se han cargado correctamente
-console.log(aContactos);
+console.log("Jesús Camero -> Registro personal")
+
+// Función para agregar un contacto no registrado al archivo contactos.txt
+function agregarContactoNoRegistrado(nombre, numero) {
+  const contacto = `${nombre}:${numero}`;
+  const filePath = path.join(__dirname, 'contactos.txt');
+
+  fs.readFile(filePath, 'utf8', (err, data) => {
+    if (err) {
+      console.log('Error al leer el archivo de contactos: ' + err);
+      return;
+    }
+
+    const newContent = data.trim() ? `${data.trim()}\n${contacto}` : contacto;
+
+    fs.writeFile(filePath, newContent, (err) => {
+      if (err) {
+        console.log('Error al agregar contacto no registrado: ' + err);
+      } else {
+        console.log('Contacto no registrado agregado: ' + contacto);
+        
+        // Recargar el array aContactos
+        const contactosData = fs.readFileSync(filePath, 'utf8');
+        aContactos = contactosData.split('\n').map(line => {
+          const [nombre, numero] = line.split(':');
+          return { nombre: nombre.trim(), numero: numero.trim() };
+        });
+        console.log('Array aContactos recargado:', aContactos);
+      }
+    });
+  });
+}
+
+// Función para cargar el contenido del archivo en un array
+function cargarGruposYProyectos(filePath) {
+  const data = fs.readFileSync(filePath, 'utf8');
+  const lines = data.split('\n');
+  const gruposYProyectos = [];
+
+  lines.forEach(line => {
+    const [grupo, proyecto] = line.split(':');
+    if (grupo && proyecto) {
+      gruposYProyectos.push({ grupo: grupo.trim(), proyecto: proyecto.trim() });
+    }
+  });
+
+  return gruposYProyectos;
+}
+
+// Ruta del archivo grupoproyecto.txt
+const filePath = path.join(__dirname, 'grupoproyecto.txt');
+
+// Cargar los datos en el array
+const gruposYProyectos = cargarGruposYProyectos(filePath);
+
+// Imprimir el array para verificar
+console.log(gruposYProyectos);
 
 // Configuración de Axios para conectar con Notion
 const notionClient = axios.create({
@@ -72,7 +129,7 @@ function saveMessage(logMessage,oObjetoMensaje) {
   });
 }
 
-async function addEntryToNotionDatabase(pageId, cRemitente, cDestinatario,type, date, content, cTelefonoRemitente, cTelefonoDestinatario, cNombreGrupo) {
+async function addEntryToNotionDatabase(pageId, cRemitente, cDestinatario,type, date, content, cTelefonoRemitente, cTelefonoDestinatario, cProyecto, cNombreGrupo) {
   try {
     const response = await notionClient.post(`/pages`, {
       parent: { database_id: pageId },
@@ -133,7 +190,15 @@ async function addEntryToNotionDatabase(pageId, cRemitente, cDestinatario,type, 
             }
           ]
         },
-
+        'Proyecto': {
+          rich_text: [
+            {
+              text: {
+                content: cProyecto
+              }
+            }
+          ]
+        },
         'Grupo': {
           rich_text: [
             {
@@ -251,9 +316,26 @@ async function processMessage(message, isOutgoing = false) {
     let cIDGrupo=getGroupIdIfGroupChat(message);
     let cNombreGrupo=buscarNombrePorNumero(cIDGrupo)
 
+    if(message.author) {
+        cRemitente=buscarNombrePorNumero(message.author)
+    }
+
     if(cNombreGrupo==='Contacto no Registrado'){
       cNombreGrupo=''
     }
+
+    if(cRemitente==='Contacto no Registrado'){
+       if(message._data.notifyName){
+        cRemitente=message._data.notifyName;       
+        if(message.author) {
+          agregarContactoNoRegistrado(cRemitente, message.author);
+        }else{
+          agregarContactoNoRegistrado(cRemitente, message.from);
+        }        
+       } 
+    }
+
+    let cProyecto=obtenerProyectoPorGrupo(cNombreGrupo);
     
     // Guardar el mensaje en el archivo específico del día
     saveMessage(logMessage,message);
@@ -261,7 +343,7 @@ async function processMessage(message, isOutgoing = false) {
     // Enviar el mensaje a la base de datos de Notion
     
     
-    await addEntryToNotionDatabase(PAGE_ID, cRemitente, cDestinatario, type, date, content, cTelefonoRemitente, cTelefonoDestinatario, cNombreGrupo);
+    await addEntryToNotionDatabase(PAGE_ID, cRemitente, cDestinatario, type, date, content, cTelefonoRemitente, cTelefonoDestinatario, cProyecto, cNombreGrupo);
 
   } catch (error) {
     log('Error al procesar el mensaje: ' + error);
@@ -297,6 +379,11 @@ function buscarNombrePorNumero(numero) {
     }
   }
   return "Contacto no Registrado";
+}
+
+function obtenerProyectoPorGrupo(nombreGrupo) {
+  const grupoProyecto = gruposYProyectos.find(gp => gp.grupo === nombreGrupo);
+  return grupoProyecto ? grupoProyecto.proyecto : 'N/A';
 }
 
 function getGroupIdIfGroupChat(message) {
