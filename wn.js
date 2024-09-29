@@ -6,13 +6,48 @@ const path = require('path');
 const axios = require('axios');
 require('dotenv').config();
 
+// Define dataDir early
+const dataDir = path.join(__dirname, 'data');
+
+// Asegurar que el directorio 'data' existe
+if (!fs.existsSync(dataDir)) {
+  fs.mkdirSync(dataDir);
+}
+
+// Función para obtener el nombre del archivo de log en base a la fecha actual
+function getLogFileName() {
+  const date = new Date();
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0'); // Los meses son 0-indexed
+  const year = date.getFullYear();
+  const fileName = `whatsapp-log-${day}-${month}-${year}.log`;
+  return path.join(dataDir, fileName);
+}
+
+// Función para obtener el nombre del archivo de mensajes en base a la fecha actual
+function getMessageFileName() {
+  const date = new Date();
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0'); // Los meses son 0-indexed
+  const year = date.getFullYear();
+  const fileName = `mensajes-${day}-${month}-${year}.log`;
+  return path.join(dataDir, fileName);
+}
+
+// Función para loggear solo errores y eventos importantes
+function log(message) {
+  const logFileName = getLogFileName();
+  fs.appendFileSync(logFileName, `${new Date().toLocaleString()}: ${message}\n`);
+}
+
 // Verifica que las variables de entorno se están cargando correctamente
 log('NOTION_API_KEY: ' + process.env.NOTION_API_KEY);
 log('PAGE_ID: ' + process.env.PAGE_ID);
 
 // Variables de entorno
-const NOTION_API_KEY = process.env.NOTION_API_KEY;
-const PAGE_ID = process.env.PAGE_ID;
+const NOTION_API_KEY  = process.env.NOTION_API_KEY;
+const PAGE_ID         = process.env.PAGE_ID;
+const PROYECTO_ID     = process.env.PROYECTO_ID;
 
 // Leer el archivo contactos.txt
 const contactosData = fs.readFileSync('contactos.txt', 'utf-8');
@@ -24,7 +59,7 @@ let aContactos = contactosData.split('\n').map(line => {
 });
 
 // Verificar que los contactos se han cargado correctamente
-console.log("Jesús Camero -> Registro personal")
+console.log("PROYECTO ACTIVO: ", PROYECTO_ID)
 
 // Función para agregar un contacto no registrado al archivo contactos.txt
 function agregarContactoNoRegistrado(nombre, numero) {
@@ -33,7 +68,7 @@ function agregarContactoNoRegistrado(nombre, numero) {
 
   fs.readFile(filePath, 'utf8', (err, data) => {
     if (err) {
-      console.log('Error al leer el archivo de contactos: ' + err);
+      log('Error al leer el archivo de contactos: ' + err);
       return;
     }
 
@@ -41,9 +76,10 @@ function agregarContactoNoRegistrado(nombre, numero) {
 
     fs.writeFile(filePath, newContent, (err) => {
       if (err) {
-        console.log('Error al agregar contacto no registrado: ' + err);
+        log('Error al agregar contacto no registrado: ' + err);
       } else {
-        console.log('Contacto no registrado agregado: ' + contacto);
+        // reemplazar por guardar en el archivo de .log
+        log('Contacto no registrado agregado: ' + contacto);
         
         // Recargar el array aContactos
         const contactosData = fs.readFileSync(filePath, 'utf8');
@@ -51,7 +87,7 @@ function agregarContactoNoRegistrado(nombre, numero) {
           const [nombre, numero] = line.split(':');
           return { nombre: nombre.trim(), numero: numero.trim() };
         });
-        console.log('Array aContactos recargado:', aContactos);
+        log("Contactos recargados");
       }
     });
   });
@@ -79,9 +115,6 @@ const filePath = path.join(__dirname, 'grupoproyecto.txt');
 // Cargar los datos en el array
 const gruposYProyectos = cargarGruposYProyectos(filePath);
 
-// Imprimir el array para verificar
-console.log(gruposYProyectos);
-
 // Configuración de Axios para conectar con Notion
 const notionClient = axios.create({
     baseURL: 'https://api.notion.com/v1',
@@ -91,35 +124,10 @@ const notionClient = axios.create({
       'Notion-Version': '2022-06-28'
     },
     timeout: 120000 // Tiempo de espera en milisegundos (60 segundos)
-  });
-  
-
-// Función para obtener el nombre del archivo de log en base a la fecha actual
-function getLogFileName() {
-  const date = new Date();
-  const day = String(date.getDate()).padStart(2, '0');
-  const month = String(date.getMonth() + 1).padStart(2, '0'); // Los meses son 0-indexed
-  const year = date.getFullYear();
-  return `whatsapp-log-${day}-${month}-${year}.log`;
-}
-
-// Función para obtener el nombre del archivo de mensajes en base a la fecha actual
-function getMessageFileName() {
-  const date = new Date();
-  const day = String(date.getDate()).padStart(2, '0');
-  const month = String(date.getMonth() + 1).padStart(2, '0'); // Los meses son 0-indexed
-  const year = date.getFullYear();
-  return `mensajes-${day}-${month}-${year}.log`;
-}
-
-// Función para loggear solo errores y eventos importantes
-function log(message) {
-  const logFileName = getLogFileName();
-  fs.appendFileSync(logFileName, `${new Date().toLocaleString()}: ${message}\n`);
-}
+  });  
 
 // Función para guardar mensajes en un archivo diferenciado por día
-function saveMessage(logMessage,oObjetoMensaje) {
+function saveMessage(logMessage, oObjetoMensaje) {
   const messageFileName = getMessageFileName();
   const mensajeString = JSON.stringify(oObjetoMensaje, null, 2); // Convertir a string con formato
   fs.appendFile(messageFileName, mensajeString, (err) => {
@@ -129,7 +137,7 @@ function saveMessage(logMessage,oObjetoMensaje) {
   });
 }
 
-async function addEntryToNotionDatabase(pageId, cRemitente, cDestinatario,type, date, content, cTelefonoRemitente, cTelefonoDestinatario, cProyecto, cNombreGrupo) {
+async function addEntryToNotionDatabase(pageId, cRemitente, cDestinatario, type, date, content, cTelefonoRemitente, cTelefonoDestinatario, cProyecto, cNombreGrupo) {
   try {
     const response = await notionClient.post(`/pages`, {
       parent: { database_id: pageId },
@@ -152,7 +160,6 @@ async function addEntryToNotionDatabase(pageId, cRemitente, cDestinatario,type, 
             }
           ]
         },
-
         'Tipo': {
           select: {
             name: type
@@ -341,8 +348,6 @@ async function processMessage(message, isOutgoing = false) {
     saveMessage(logMessage,message);
 
     // Enviar el mensaje a la base de datos de Notion
-    
-    
     await addEntryToNotionDatabase(PAGE_ID, cRemitente, cDestinatario, type, date, content, cTelefonoRemitente, cTelefonoDestinatario, cProyecto, cNombreGrupo);
 
   } catch (error) {
@@ -394,7 +399,6 @@ function getGroupIdIfGroupChat(message) {
   return '';  // Si no es un grupo, retorna una cadena vacía
 }
 
-
 // Capturar errores no manejados
 process.on('unhandledRejection', (reason, promise) => {
   log('Unhandled Rejection at: ' + promise + ' reason: ' + reason);
@@ -406,4 +410,4 @@ client.initialize();
 // Mantener el script en ejecución
 setInterval(() => {
   log('Script sigue en ejecución. Hora: ' + new Date().toLocaleString());
-}, 600000); // Log cada 10 minutos
+}, 600000); // Log cada
