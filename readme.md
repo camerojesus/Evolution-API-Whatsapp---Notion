@@ -1,4 +1,3 @@
-```markdown
 # WhatsApp Automation - wn.js
 
 Este proyecto es una implementación para automatizar la interacción con WhatsApp usando la biblioteca `whatsapp-web.js`. El script está diseñado para bloquear y desbloquear contactos de manera programada, procesar mensajes entrantes y salientes, y registrar eventos importantes en archivos de log. Además, se integra con Notion para guardar información sobre las interacciones en una base de datos de la plataforma.
@@ -103,5 +102,3 @@ Si deseas contribuir a este proyecto, por favor realiza un fork y envía una pul
 
 ### Autor
 Proyecto desarrollado por Jesús Camero.
-
-```
