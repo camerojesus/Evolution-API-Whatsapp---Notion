@@ -293,7 +293,6 @@ client.on('authenticated', () => {
 
 // Cuando el cliente está listo
 client.on('ready', () => {
-  
   log('Cliente está listo y conectado.');
   // Programar el bloqueo de contactos todos los días a las 12:46pm
   cron.schedule('00 12 * * *', () => {
@@ -316,7 +315,7 @@ client.on('ready', () => {
     log('Iniciando desbloqueo de contactos programado.');
     desbloquearContactos(client);
   });  
-
+  desbloquearContactos(client);
 });
 
 // Manejar errores de autenticación
