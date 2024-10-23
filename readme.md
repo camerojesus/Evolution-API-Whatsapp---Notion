@@ -1,5 +1,3 @@
-Aquí tienes un archivo `README.md` para describir y analizar el archivo `wn.js`, como se suele hacer en proyectos para GitHub:
-
 ```markdown
 # WhatsApp Automation - wn.js
 
@@ -107,5 +105,3 @@ Si deseas contribuir a este proyecto, por favor realiza un fork y envía una pul
 Proyecto desarrollado por Jesús Camero.
 
 ```
-
-Este README sigue las mejores prácticas para la descripción de proyectos en GitHub y ofrece una explicación detallada de las funcionalidades y configuración del script `wn.js`.
