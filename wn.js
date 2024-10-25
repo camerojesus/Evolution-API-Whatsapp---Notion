@@ -38,7 +38,7 @@ async function bloquearContactos(client) {
         const contact = await client.getContactById(contactId);
         await contact.block();
         log(`Contacto bloqueado: ${nombre.trim()} (${contactId})`);
-        await new Promise(resolve => setTimeout(resolve, 3000)); // Esperar 1 segundo antes de continuar
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Esperar 1 segundo antes de continuar
       } catch (innerError) {
         log(`Error al bloquear contacto ${nombre.trim()} (${contactId}): ${innerError}`);
       }
@@ -61,7 +61,7 @@ async function desbloquearContactos(client) {
         const contact = await client.getContactById(contactId);
         await contact.unblock();
         log(`Contacto desbloqueado: ${nombre.trim()} (${contactId})`);
-        await new Promise(resolve => setTimeout(resolve, 3000)); // Esperar 1 segundo antes de continuar
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Esperar 1 segundo antes de continuar
       } catch (innerError) {
         log(`Error al desbloquear contacto ${nombre.trim()} (${contactId}): ${innerError}`);
       }
@@ -316,6 +316,21 @@ client.on('ready', () => {
     log('Iniciando desbloqueo de contactos programado.');
     desbloquearContactos(client);
   });  
+
+  // Programar el bloqueo de contactos los jueves a las 12:00 AM
+  cron.schedule('0 0 * * 4', () => {
+    log('Iniciando bloqueo programado para el fin de semana.');
+    bloquearContactos(client);
+  });  
+
+  // Programar el desbloqueo de contactos los sábados a las 9:00 AM
+  cron.schedule('0 9 * * 6', () => {
+        log('Finalizando bloqueo programado para el fin de semana.');
+        desbloquearContactos(client);
+  });  
+
+  //bloquearContactos(client);
+  //desbloquearContactos(client);
 
 });
 
