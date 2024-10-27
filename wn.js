@@ -292,46 +292,34 @@ client.on('authenticated', () => {
 });
 
 // Cuando el cliente está listo
+// Cuando el cliente está listo
 client.on('ready', () => {
   
   log('Cliente está listo y conectado.');
-  // Programar el bloqueo de contactos todos los días a las 12:46pm
-  cron.schedule('00 12 * * *', () => {
-    log('Iniciando bloqueo de contactos programado.');
-    bloquearContactos(client);
-  });
 
-  // Programar el desbloqueo de contactos todos los días a la 1:00pm
-  cron.schedule('00 13 * * *', () => {
-    log('Iniciando desbloqueo de contactos programado.');
+  // 1. Desbloquear a las 8:00am los días (sábado, domingo, lunes, martes, miércoles, jueves)
+  cron.schedule('0 8 * * 0-4,6', () => {
+    log('Iniciando desbloqueo de contactos programado a las 8am.');
     desbloquearContactos(client);
   });
 
-  cron.schedule('00 17 * * *', () => {
-    log('Iniciando bloqueo de contactos programado.');
+  // 2. Bloquear a las 12:00pm todos los días
+  cron.schedule('0 12 * * *', () => {
+    log('Iniciando bloqueo de contactos programado a las 12pm.');
     bloquearContactos(client);
-  });  
+  });
 
-  cron.schedule('00 08 * * *', () => {
-    log('Iniciando desbloqueo de contactos programado.');
+  // 3. Desbloquear a las 2:00pm los días (sábado, domingo, lunes, martes, miércoles, jueves)
+  cron.schedule('0 14 * * 0-4,6', () => {
+    log('Iniciando desbloqueo de contactos programado a las 2pm.');
     desbloquearContactos(client);
-  });  
+  });
 
-  // Programar el bloqueo de contactos los jueves a las 12:00 AM
-  cron.schedule('0 0 * * 4', () => {
-    log('Iniciando bloqueo programado para el fin de semana.');
+  // 4. Bloquear a las 5:00pm todos los días
+  cron.schedule('0 17 * * *', () => {
+    log('Iniciando bloqueo de contactos programado a las 5pm.');
     bloquearContactos(client);
-  });  
-
-  // Programar el desbloqueo de contactos los sábados a las 9:00 AM
-  cron.schedule('0 9 * * 6', () => {
-        log('Finalizando bloqueo programado para el fin de semana.');
-        desbloquearContactos(client);
-  });  
-
-  //bloquearContactos(client);
-  //desbloquearContactos(client);
-
+  });
 });
 
 // Manejar errores de autenticación
@@ -496,3 +484,4 @@ client.initialize();
 setInterval(() => {
   log('Script sigue en ejecución. Hora: ' + new Date().toLocaleString());
 }, 600000); // Log cada
+
