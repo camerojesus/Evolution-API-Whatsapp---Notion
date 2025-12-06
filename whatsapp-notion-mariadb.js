@@ -20,9 +20,22 @@ const path    = require('path');
 const axios   = require('axios');
 const cron    = require('node-cron');
 const mariadb = require('mariadb');
+// Endpoint remoto con el motor conversacional (Gescel-vps)
+const AGENT_API_URL = process.env.AGENT_API_URL || 'http://localhost:3000/agent/reply';
 const { Client: NotionClient } = require('@notionhq/client');
 const fetch   = require('node-fetch');
 const tiktoken = require('tiktoken');
+
+async function getAgentReply({ text, from, to }) {
+  if (!AGENT_API_URL) return null;
+  try {
+    const res = await axios.post(AGENT_API_URL, { text, from, to }, { timeout: 20000 });
+    return res.data?.reply || null;
+  } catch (err) {
+    log(`Error llamando al agente remoto: ${err.message}`, true);
+    return null;
+  }
+}
 
 /*━━━━━━━━━━  VARIABLES DE ENTORNO POR DEFECTO  ━━━━━━━━━━*/
 const DEFAULT_NOTION_API_KEY = process.env.NOTION_API_KEY;
@@ -291,6 +304,12 @@ async function processMessage(m,out){
     if(!m.body.trim()||String(m.timestamp)===m.body.trim())return;
     if(m.isBroadcast&&!m.fromMe)return;
 
+    // Respuesta automática para el trigger #hola
+    const bodyTrim = m.body.trim();
+    if(!out && bodyTrim.toLowerCase()==='#hola'){
+      try{ await m.reply('Hola jesus, sé que eres tu'); }catch(e){ log('Error enviando respuesta #hola: '+e.message,true); }
+    }
+
     const chat=await m.getChat();
     const yo = client.info.wid._serialized;
     const tipo = out?'Salida':'Entrada';
@@ -323,6 +342,18 @@ async function processMessage(m,out){
     if(grp) proj = proyectoPorGrupo(grp);
 
     log(`[${tipo}] ${remit}→${dest} G:${grp} P:${proj}`);
+
+    // Consultar respuesta del motor conversacional remoto solo para mensajes entrantes
+    if (!out) {
+      const agentReply = await getAgentReply({ text: cuerpo, from: telRem, to: telDest });
+      if (agentReply) {
+        try {
+          await m.reply(agentReply);
+        } catch (e) {
+          log('Error enviando respuesta del agente: '+e.message, true);
+        }
+      }
+    }
 
     saveRaw(m);
 
